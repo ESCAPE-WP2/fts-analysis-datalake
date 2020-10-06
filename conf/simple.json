@@ -1,0 +1,18 @@
+{
+    "protocols": {
+        "gsiftp": [
+            "dcache-door-doma01.desy.de:2811//escape/wp2_rucio_testbed/desy_dcache",
+            "eulakeftp.cern.ch:2811/eos/eulake/tests/rucio_test/eulake_1"
+        ]
+    },
+    "testing_folder": "fts-testing",
+    "num_of_jobs": 1,
+    "num_of_files": [
+        5
+    ],
+    "filesizes": [
+        1
+    ],
+    "checksum": "none",
+    "overwrite": false
+}

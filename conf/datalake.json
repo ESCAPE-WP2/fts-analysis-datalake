@@ -1,12 +1,12 @@
 {
     "num_of_files": [
-        5
+        1
     ], 
     "testing_folder": "fts-testing", 
     "checksum": "none", 
     "num_of_jobs": 1, 
     "filesizes": [
-        1
+        5
     ], 
     "overwrite": false, 
     "protocols": {
@@ -25,7 +25,7 @@
         "root": [
             "xrootd.pic.es:1094//pnfs/pic.es/data/escape/rucio/pic_dcache", 
             "dcache-se-doma.desy.de:1094//escape/wp2_rucio_testbed/desy_dcache", 
-            "eulake.cern.ch:1094//eos/eulake/tests/rucio_test/eulake_1", 
+            "eoseulake.cern.ch:1094//eos/eulake/tests/rucio_test/eulake_1", 
             "ccdcalitest10.in2p3.fr:1094//pnfs/in2p3.fr/data/escape/cc_in2p3_dcache", 
             "t2-dpm-dome.na.infn.it:1094/dpm/na.infn.it/home/escape/infn_na_dpm", 
             "lapp-testse01.in2p3.fr:1094/dpm/in2p3.fr/home/escape/rucio/lapp_dpm", 

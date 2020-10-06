@@ -248,6 +248,9 @@ def main():
                     abort_source = False
                     source_url = "{}://{}".format(protocol, endpnt_pair[0])
                     dest_url = "{}://{}".format(protocol, endpnt_pair[1])
+                    logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                    logger.info("Source: {}".format(source_url))
+                    logger.info("Destination: {}".format(dest_url))
                     # for every filesize combination
                     for filesize in filesize_list:
                         # for every files per job combination

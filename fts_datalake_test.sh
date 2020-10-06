@@ -10,5 +10,3 @@ mkdir -p $LOCALPATH
 
 python /afs/cern.ch/user/r/ridona/escape/wp2-github/fts-analysis-datalake/fts_datalake_test.py -i conf/datalake.json
 
-rm -rf $LOCALPATH
-

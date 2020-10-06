@@ -139,17 +139,22 @@ def _poll_fts_job(context, job_id):
     """
     """
     logger = logging.getLogger()
-    while True:
-        response = json.loads(context.get("/jobs/" + job_id))
-        if response['http_status'] == "200 Ok":
-            if response["job_finished"]:
-                logger.info('Job with id {} finished with job_state:{}'.format(
-                    job_id, response['job_state']))
-                break
-        else:
-            logger.info('Server http status: {}'.format(
-                response['http_status']))
-            break
+    try:
+        while True:
+            response = json.loads(context.get("/jobs/" + job_id))
+            if response['http_status'] == "200 Ok":
+                if response["job_finished"]:
+                    logger.info(
+                        'Job with id {} finished with job_state:{}'.format(
+                            job_id, response['job_state']))
+                    break
+            else:
+                logger.info('Server http status: {}'.format(
+                    response['http_status']))
+                return None
+    except Exception as e:
+        logger.info("Polling failed:{}, response:{}".format(e, response))
+        return None
 
     return response['job_state']
 
@@ -278,12 +283,17 @@ def main():
                                     job_id))
                             job_state = _poll_fts_job(context, job_id)
 
-                            # remove files
+                            # remove files locally
+                            logger.info("rm {}".format(file))
+                            for file in files:
+                                os.remove(file)
+
+                            # remove files on the source
                             code = _gfal_rm_files(
                                 files,
                                 os.path.join(source_url, testing_folder, "src"))
-                            if job_state != "FAILED":
-                                # if job didn't faile remove dest files too
+                            if job_state == "FINISHED":
+                                # if job finished remove dest files too
                                 code = _gfal_rm_files(
                                     files,
                                     os.path.join(dest_url, testing_folder,

@@ -8,5 +8,5 @@ export X509_USER_PROXY=/tmp/x509up_u127450
 
 mkdir -p $LOCALPATH
 
-python fts_datalake_test.py -i conf/datalake.json &> tests.log
+python fts_datalake_test.py -i conf/datalake.json > /dev/null 2>&1
 

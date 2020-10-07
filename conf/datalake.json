@@ -1,14 +1,14 @@
 {
     "num_of_files": [
-        1
+        4
     ], 
     "testing_folder": "fts-testing", 
+    "overwrite": false, 
     "checksum": "none", 
     "num_of_jobs": 1, 
     "filesizes": [
-        5
+        1
     ], 
-    "overwrite": false, 
     "protocols": {
         "davs": [
             "door05.pic.es:8452//rucio/pic_dcache", 
@@ -39,5 +39,8 @@
             "lapp-testse01.in2p3.fr:2811/dpm/in2p3.fr/home/escape/rucio/lapp_dpm", 
             "gridftp.grid.sara.nl:2811//pnfs/grid.sara.nl/data/escape/disk/rucio/sara_dcache"
         ]
+    }, 
+    "metadata": {
+        "activity": "functional-testing"
     }
 }

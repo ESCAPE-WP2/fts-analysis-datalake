@@ -8,5 +8,5 @@ export X509_USER_PROXY=/tmp/x509up_u127450
 
 mkdir -p $LOCALPATH
 
-python /afs/cern.ch/user/r/ridona/escape/wp2-github/fts-analysis-datalake/fts_datalake_test.py -i conf/datalake.json
+python fts_datalake_test.py -i conf/datalake.json &> tests.log
 

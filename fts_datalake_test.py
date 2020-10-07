@@ -22,7 +22,29 @@ MB = 1048576
 # ------------------------------------------------------------------------------
 
 
-def _setup_folders(endpnt_list, testing_folder):
+def _gfal_clean_up_dir(directory):
+    """
+    """
+    logger = logging.getLogger()
+    context = gfal2.creat_context()
+
+    file_names = context.listdir(str(directory))
+    if file_names:
+        logger.info('gfal-rm (x{}) {}'.format(len(file_names), directory))
+        for file in file_names:
+            gfal_file = os.path.join(directory, file)
+            try:
+                error = context.unlink(str(gfal_file))
+                if not error:
+                    pass
+                else:
+                    logger.info("error:{}").format(error)
+            except Exception as e:
+                logger.info("gfal-rm failed:{}, gfal_file:{}".format(
+                    e, gfal_file))
+
+
+def _setup_folders(endpnt_list, testing_folder, cleanup=False):
     """
     Setup folders at endpoint
 
@@ -52,6 +74,10 @@ def _setup_folders(endpnt_list, testing_folder):
             context.mkdir(str(src_dir), 0775)
             context.mkdir(str(dest_dir), 0775)
 
+        if cleanup:
+            _gfal_clean_up_dir(dest_dir)
+            _gfal_clean_up_dir(src_dir)
+
 
 def _gfal_rm_files(files, url):
     """
@@ -64,11 +90,11 @@ def _gfal_rm_files(files, url):
         filename = file.split(LOCALPATH_TEMP_DIR + "/", 1)[1]
         gfal_file = os.path.join(url, filename)
         try:
-            errors = context.unlink(str(gfal_file))
-            if not errors:
+            error = context.unlink(str(gfal_file))
+            if not error:
                 pass
             else:
-                print errors
+                logger.info("error:{}").format(error)
         except Exception as e:
             logger.info("gfal-rm failed:{}, gfal_file:{}".format(e, gfal_file))
             return -1
@@ -110,23 +136,19 @@ def _gfal_upload_files(files, src_endpnt, testing_folder):
     logger.info('gfal-copy (x{}) {}'.format(
         len(sources), os.path.join(src_endpnt, testing_folder, "src")))
     try:
-        errors = context.filecopy(params, sources, destinations)
-        if not errors:
-            pass
-        else:
-            for i in range(len(errors)):
-                e = errors[i]
-                src = sources[i]
-                dst = destinations[i]
-                if e:
-                    logger.info("%s => %s failed [%d] %s" %
-                                (src, dst, e.code, e.message))
-                    return -1
-                else:
-                    pass
-                    # logger.info("%s => %s succeeded!" % (src, dst))
+        for i in range(len(sources)):
+            src = sources[i]
+            dst = destinations[i]
+            error = context.filecopy(params, src, dst)
+            if not error:
+                pass
+                # logger.info("{} => {} succeeded!".format(src, dst))
+            else:
+                logger.info("{} => {} failed [{}] {}".format(
+                    src, dst, error.code, error.message))
+                return -1
     except Exception as e:
-        logger.info("Copy failed: %s" % str(e))
+        logger.info("Copy failed: {}".format(e))
         return -1
 
     return filenames
@@ -160,7 +182,7 @@ def _poll_fts_job(context, job_id):
 
 
 def _submit_fts_job(source_url, dest_url, filenames, checksum, overwrite,
-                    testing_folder, context):
+                    testing_folder, context, metadata):
     """
     https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/easy/submission.py#L106
     """
@@ -171,9 +193,6 @@ def _submit_fts_job(source_url, dest_url, filenames, checksum, overwrite,
         dest_file = os.path.join(dest_url, testing_folder, "dest", filename)
         transfer = fts3.new_transfer(source=source_file, destination=dest_file)
         transfers.append(transfer)
-
-    metadata = {}
-    metadata['activity'] = "functional-testing"
 
     # create job
     job = fts3.new_job(transfers,
@@ -199,9 +218,15 @@ def main():
                         required=True,
                         dest="conf_file",
                         help="Configuration file")
+    parser.add_argument("--cleanup",
+                        required=False,
+                        action='store_true',
+                        default=False,
+                        help="Clean up src/dst directories")
 
     arg = parser.parse_args()
     conf_file = str(arg.conf_file)
+    cleanup = arg.cleanup
 
     logging.basicConfig(format='%(asctime)s %(message)s',
                         datefmt='%d/%m/%Y %I:%M:%S %p',
@@ -220,6 +245,7 @@ def main():
         testing_folder = data['testing_folder']
         checksum = data["checksum"]
         overwrite = data["overwrite"]
+        metadata = data['metadata']
 
         # setup folders at the testing endpoints if needed
         endpoints = []
@@ -232,7 +258,7 @@ def main():
                     endpoint_tlist.append(endpoint_t)
                     endpoints.append("{}://{}".format(protocol, endpoint))
         del endpoint_tlist
-        _setup_folders(endpoints, testing_folder)
+        _setup_folders(endpoints, testing_folder, cleanup)
 
         # authenticate @ FTS endpoint
         # https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/context.py#L148
@@ -279,7 +305,7 @@ def main():
                             job_id = _submit_fts_job(source_url, dest_url,
                                                      filenames, checksum,
                                                      overwrite, testing_folder,
-                                                     context)
+                                                     context, metadata)
                             # poll for job status
                             logger.info(
                                 'Polling begins for FTS job with id {}'.format(

@@ -44,41 +44,6 @@ def _gfal_clean_up_dir(directory):
                     e, gfal_file))
 
 
-def _setup_folders(endpnt_list, testing_folder, cleanup=False):
-    """
-    Setup folders at endpoint
-
-    Args:
-        endpnt_list(str): List of endpoints to setup folders at
-        testing_folder(str): Folder name to remove/create
-    Returns: None
-    """
-    logger = logging.getLogger()
-    context = gfal2.creat_context()
-
-    # for each endpoint
-    for endpnt in endpnt_list:
-        # list directories/files
-        logger.info('gfal-ls {}'.format(endpnt))
-        dir_names = context.listdir(endpnt)
-
-        base_dir = os.path.join(endpnt, testing_folder)
-        src_dir = os.path.join(endpnt, testing_folder, "src")
-        dest_dir = os.path.join(endpnt, testing_folder, "dest")
-
-        # if folder does not exist
-        if testing_folder not in dir_names:
-            # create folder
-            logger.info('gfal-mkdir {}'.format(base_dir))
-            context.mkdir(str(base_dir), 0775)
-            context.mkdir(str(src_dir), 0775)
-            context.mkdir(str(dest_dir), 0775)
-
-        if cleanup:
-            _gfal_clean_up_dir(dest_dir)
-            _gfal_clean_up_dir(src_dir)
-
-
 def _gfal_rm_files(files, url):
     """
     """
@@ -154,10 +119,59 @@ def _gfal_upload_files(files, src_endpnt, testing_folder):
     return filenames
 
 
+def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
+    """
+    Setup folders at endpoint
+
+    Args:
+        endpnt_list(str): List of endpoints to setup folders at
+        testing_folder(str): Folder name to remove/create
+    Returns: None
+    """
+    logger = logging.getLogger()
+    context = gfal2.creat_context()
+
+    problematic_endpoints = []
+
+    # for each endpoint
+    for endpnt in endpnt_list:
+        # list directories/files
+        logger.info('gfal-ls {}'.format(endpnt))
+        try:
+            dir_names = context.listdir(endpnt)
+        except Exception as e:
+            logger.info("gfal-ls failed:{}, endpoint:{}".format(e, endpnt))
+            problematic_endpoints.append(endpnt)
+            continue
+
+        base_dir = os.path.join(endpnt, testing_folder)
+        src_dir = os.path.join(endpnt, testing_folder, "src")
+        dest_dir = os.path.join(endpnt, testing_folder, "dest")
+
+        # if folder does not exist
+        if testing_folder not in dir_names:
+            # create folder
+            logger.info('gfal-mkdir {}'.format(base_dir))
+            try:
+                context.mkdir(str(base_dir), 0775)
+                context.mkdir(str(src_dir), 0775)
+                context.mkdir(str(dest_dir), 0775)
+            except Exception as e:
+                logger.info("gfal-mkdir failed:{}, dir:{}".format(e, base_dir))
+                problematic_endpoints.append(endpnt)
+                continue
+
+        if cleanup:
+            _gfal_clean_up_dir(dest_dir)
+            _gfal_clean_up_dir(src_dir)
+
+    return problematic_endpoints
+
+
 # ------------------------------------------------------------------------------
 
 
-def _poll_fts_job(context, job_id):
+def _fts_poll_job(context, job_id):
     """
     """
     logger = logging.getLogger()
@@ -181,7 +195,7 @@ def _poll_fts_job(context, job_id):
     return response['job_state']
 
 
-def _submit_fts_job(source_url, dest_url, filenames, checksum, overwrite,
+def _fts_submit_job(source_url, dest_url, filenames, checksum, overwrite,
                     testing_folder, context, metadata):
     """
     https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/easy/submission.py#L106
@@ -258,7 +272,11 @@ def main():
                     endpoint_tlist.append(endpoint_t)
                     endpoints.append("{}://{}".format(protocol, endpoint))
         del endpoint_tlist
-        _setup_folders(endpoints, testing_folder, cleanup)
+        prob_endpoints = _gfal_setup_folders(endpoints, testing_folder, cleanup)
+        if prob_endpoints:
+            logger.info(
+                "Problematic endpoints (will not be tested): {})".format(
+                    prob_endpoints))
 
         # authenticate @ FTS endpoint
         # https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/context.py#L148
@@ -274,6 +292,10 @@ def main():
                     abort_source = False
                     source_url = "{}://{}".format(protocol, endpnt_pair[0])
                     dest_url = "{}://{}".format(protocol, endpnt_pair[1])
+                    if source_url in prob_endpoints:
+                        continue
+                    if dest_url in prob_endpoints:
+                        continue
                     logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                     logger.info("Source: {}".format(source_url))
                     logger.info("Destination: {}".format(dest_url))
@@ -302,7 +324,7 @@ def main():
                                 break
                             # submit fts transfer
                             logger.info('Submitting FTS job')
-                            job_id = _submit_fts_job(source_url, dest_url,
+                            job_id = _fts_submit_job(source_url, dest_url,
                                                      filenames, checksum,
                                                      overwrite, testing_folder,
                                                      context, metadata)
@@ -310,7 +332,7 @@ def main():
                             logger.info(
                                 'Polling begins for FTS job with id {}'.format(
                                     job_id))
-                            job_state = _poll_fts_job(context, job_id)
+                            job_state = _fts_poll_job(context, job_id)
 
                             # remove files locally
                             logger.info("rm {}".format(file))

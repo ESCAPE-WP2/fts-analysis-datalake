@@ -12,11 +12,13 @@ import logging
 import requests
 import itertools
 import fts3.rest.client.easy as fts3
+import fts3.rest.client.exceptions as fts3_client_exceptions
 
 # CONFIG VARIABLES
 FILE_PREFIX = "fts.testfile"
 FTS_ENDPOINT = "https://fts3-pilot.cern.ch:8446"
-LOCALPATH_TEMP_DIR = os.getenv("LOCALPATH", "./temp_files_fts")
+DEFAULT_LOCALPATH = "/tmp/ridona/temp_files_fts"
+LOCALPATH_TEMP_DIR = os.getenv("LOCALPATH", DEFAULT_LOCALPATH)
 MB = 1048576
 
 # ------------------------------------------------------------------------------
@@ -24,14 +26,23 @@ MB = 1048576
 
 def _gfal_clean_up_dir(directory):
     """
+    Remove all files from a directory
+
+    Args:
+        directory(str): Directory path
+
+    Returns:
+        None if successful
+        -1 if error
     """
     logger = logging.getLogger()
     context = gfal2.creat_context()
 
-    file_names = context.listdir(str(directory))
-    if file_names:
-        logger.info('gfal-rm (x{}) {}'.format(len(file_names), directory))
-        for file in file_names:
+    filenames = context.listdir(str(directory))
+    if filenames:
+        logger.info('gfal-rm (x{}) {}'.format(len(filenames), directory))
+        logger.handlers[0].flush()
+        for file in filenames:
             gfal_file = os.path.join(directory, file)
             try:
                 error = context.unlink(str(gfal_file))
@@ -42,18 +53,30 @@ def _gfal_clean_up_dir(directory):
             except Exception as e:
                 logger.info("gfal-rm failed:{}, gfal_file:{}".format(
                     e, gfal_file))
+                logger.handlers[0].flush()
+                return -1
+    return None
 
 
-def _gfal_rm_files(files, url):
+def _gfal_rm_files(filenames, directory):
     """
+    Remove files from a directory
+
+    Args:
+        filenames(list): List of filenames
+        directory(str): Directory path
+
+    Returns:
+        None if successful
+        -1 if error
     """
     logger = logging.getLogger()
     context = gfal2.creat_context()
 
-    logger.info('gfal-rm (x{}) {}'.format(len(files), url))
-    for file in files:
-        filename = file.split(LOCALPATH_TEMP_DIR + "/", 1)[1]
-        gfal_file = os.path.join(url, filename)
+    logger.info('gfal-rm (x{}) {}'.format(len(filenames), directory))
+    logger.handlers[0].flush()
+    for file in filenames:
+        gfal_file = os.path.join(directory, file)
         try:
             error = context.unlink(str(gfal_file))
             if not error:
@@ -62,20 +85,23 @@ def _gfal_rm_files(files, url):
                 logger.info("error:{}").format(error)
         except Exception as e:
             logger.info("gfal-rm failed:{}, gfal_file:{}".format(e, gfal_file))
+            logger.handlers[0].flush()
             return -1
     return None
 
 
-def _gfal_upload_files(files, src_endpnt, testing_folder):
+def _gfal_upload_files(local_file_paths, directory, filenames):
     """
-    Upload files to source endpoint
+    Upload files to a directory
 
     Args:
-        src_endpnt(str): Source endpoint where the files will be uploaded
-        files(list): List of files paths that will be uploaded
+        directory(str): Directory path
+        local_file_paths(list): List of local files paths that will be uploaded
+        filenames(list): List of filenames that will be uploaded
 
     Returns:
-        List of filenames without the current local absolute path or -1 if error
+        None if successful
+        -1 if error
 
     """
 
@@ -87,21 +113,19 @@ def _gfal_upload_files(files, src_endpnt, testing_folder):
     params.overwrite = False
     params.checksum_check = False
 
-    filenames = []
     sources = []
     destinations = []
-    for file in files:
-        filename = file.split(LOCALPATH_TEMP_DIR + "/", 1)[1]
-        gfal_file = "file://" + file
+    for i in xrange(len(local_file_paths)):
+        filename = filenames[i]
+        local_file_path = local_file_paths[i]
+        gfal_file = "file://" + local_file_path
         sources.append(str(gfal_file))
-        destinations.append(
-            str(os.path.join(src_endpnt, testing_folder, "src", filename)))
-        filenames.append(str(filename))
+        destinations.append(str(os.path.join(directory, filename)))
 
-    logger.info('gfal-copy (x{}) {}'.format(
-        len(sources), os.path.join(src_endpnt, testing_folder, "src")))
+    logger.info('gfal-copy (x{}) {}'.format(len(sources), directory))
+    logger.handlers[0].flush()
     try:
-        for i in range(len(sources)):
+        for i in xrange(len(sources)):
             src = sources[i]
             dst = destinations[i]
             error = context.filecopy(params, src, dst)
@@ -111,12 +135,14 @@ def _gfal_upload_files(files, src_endpnt, testing_folder):
             else:
                 logger.info("{} => {} failed [{}] {}".format(
                     src, dst, error.code, error.message))
+                logger.handlers[0].flush()
                 return -1
     except Exception as e:
         logger.info("Copy failed: {}".format(e))
+        logger.handlers[0].flush()
         return -1
 
-    return filenames
+    return None
 
 
 def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
@@ -137,10 +163,12 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
     for endpnt in endpnt_list:
         # list directories/files
         logger.info('gfal-ls {}'.format(endpnt))
+        logger.handlers[0].flush()
         try:
             dir_names = context.listdir(endpnt)
         except Exception as e:
             logger.info("gfal-ls failed:{}, endpoint:{}".format(e, endpnt))
+            logger.handlers[0].flush()
             problematic_endpoints.append(endpnt)
             continue
 
@@ -152,12 +180,14 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
         if testing_folder not in dir_names:
             # create folder
             logger.info('gfal-mkdir {}'.format(base_dir))
+            logger.handlers[0].flush()
             try:
                 context.mkdir(str(base_dir), 0775)
                 context.mkdir(str(src_dir), 0775)
                 context.mkdir(str(dest_dir), 0775)
             except Exception as e:
                 logger.info("gfal-mkdir failed:{}, dir:{}".format(e, base_dir))
+                logger.handlers[0].flush()
                 problematic_endpoints.append(endpnt)
                 continue
 
@@ -183,13 +213,16 @@ def _fts_poll_job(context, job_id):
                     logger.info(
                         'Job with id {} finished with job_state:{}'.format(
                             job_id, response['job_state']))
+                    logger.handlers[0].flush()
                     break
             else:
                 logger.info('Server http status: {}'.format(
                     response['http_status']))
+                logger.handlers[0].flush()
                 return None
     except Exception as e:
         logger.info("Polling failed:{}, response:{}".format(e, response))
+        logger.handlers[0].flush()
         return None
 
     return response['job_state']
@@ -200,6 +233,8 @@ def _fts_submit_job(source_url, dest_url, filenames, checksum, overwrite,
     """
     https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/easy/submission.py#L106
     """
+
+    logger = logging.getLogger()
 
     transfers = []
     for filename in filenames:
@@ -216,7 +251,13 @@ def _fts_submit_job(source_url, dest_url, filenames, checksum, overwrite,
                        metadata=metadata)
 
     # submit job
-    job_id = fts3.submit(context, job)
+    while True:
+        try:
+            job_id = fts3.submit(context, job)
+            break
+        except fts3_client_exceptions.ClientError as e:
+            logger.info(e)
+            logger.handlers[0].flush()
 
     return job_id
 
@@ -277,14 +318,16 @@ def main():
             logger.info(
                 "Problematic endpoints (will not be tested): {})".format(
                     prob_endpoints))
+            logger.handlers[0].flush()
 
         # authenticate @ FTS endpoint
         # https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/context.py#L148
         logger.info('Authenticating at {}'.format(FTS_ENDPOINT))
+        logger.handlers[0].flush()
         context = fts3.Context(FTS_ENDPOINT, verify=True)
 
         # for every job
-        for k in xrange(num_of_jobs):
+        for _ in xrange(num_of_jobs):
             for protocol in protocol_map:
                 protocol_endpoints = protocol_map[protocol]
                 endpnt_pairs = itertools.permutations(protocol_endpoints, 2)
@@ -299,6 +342,7 @@ def main():
                     logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                     logger.info("Source: {}".format(source_url))
                     logger.info("Destination: {}".format(dest_url))
+                    logger.handlers[0].flush()
                     # for every filesize combination
                     for filesize in filesize_list:
                         # for every files per job combination
@@ -306,49 +350,51 @@ def main():
                             break
                         for numfile in num_of_files_list:
                             # for every file of the job
-                            files = []
+                            logger.info(
+                                "Generating {} random files of size:{}MB".
+                                format(numfile, filesize))
+                            logger.handlers[0].flush()
+                            local_file_paths = []
+                            filenames = []
                             for nfile in xrange(numfile):
                                 random_suffix = str(uuid.uuid1())
                                 random_filename = "{}.{}".format(
                                     FILE_PREFIX, random_suffix)
-                                file = os.path.join(LOCALPATH_TEMP_DIR,
-                                                    random_filename)
-                                with open(file, 'wb') as fout:
+                                filenames.append(random_filename)
+                                file_path = os.path.join(
+                                    LOCALPATH_TEMP_DIR, random_filename)
+                                with open(file_path, 'wb') as fout:
                                     fout.write(os.urandom(filesize * MB))
-                                files.append(str(file))
+                                local_file_paths.append(str(file_path))
+
                             # upload files to the source for this job
-                            filenames = _gfal_upload_files(
-                                files, source_url, testing_folder)
-                            if filenames == -1:
+                            logger.info("Uploading files to source")
+                            logger.handlers[0].flush()
+                            source_dir = os.path.join(source_url,
+                                                      testing_folder, "src")
+                            rcode = _gfal_upload_files(local_file_paths,
+                                                       source_dir, filenames)
+                            if rcode == -1:
                                 abort_source = True
                                 break
+
                             # submit fts transfer
                             logger.info('Submitting FTS job')
+                            logger.handlers[0].flush()
                             job_id = _fts_submit_job(source_url, dest_url,
                                                      filenames, checksum,
                                                      overwrite, testing_folder,
                                                      context, metadata)
-                            # poll for job status
-                            logger.info(
-                                'Polling begins for FTS job with id {}'.format(
-                                    job_id))
-                            job_state = _fts_poll_job(context, job_id)
+                            logger.info('FTS job id:{}'.format(job_id))
+                            logger.handlers[0].flush()
 
                             # remove files locally
-                            logger.info("rm {}".format(file))
-                            for file in files:
+                            logger.info(
+                                "Removing files from LOCALPATH: {}".format(
+                                    LOCALPATH_TEMP_DIR))
+                            logger.handlers[0].flush()
+                            for file in local_file_paths:
                                 os.remove(file)
-
-                            # remove files on the source
-                            code = _gfal_rm_files(
-                                files,
-                                os.path.join(source_url, testing_folder, "src"))
-                            if job_state == "FINISHED":
-                                # if job finished remove dest files too
-                                code = _gfal_rm_files(
-                                    files,
-                                    os.path.join(dest_url, testing_folder,
-                                                 "dest"))
 
 
 if __name__ == '__main__':

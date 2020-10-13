@@ -198,6 +198,33 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
     return problematic_endpoints
 
 
+def _gfal_check_files(directory, filesize, numfile):
+    """
+    """
+
+    logger = logging.getLogger()
+    context = gfal2.creat_context()
+
+    return_filenames = []
+    filenames = context.listdir(str(directory))
+    if filenames:
+        # we have files
+        if len(filenames) < numfile:
+            # we have less files than we want
+            return []
+        for file in filenames:
+            if file.endswith("{}mb".format(filesize)):
+                return_filenames.append(file)
+        if len(return_filenames) < numfile:
+            # we have less files if filesize than we want
+            return []
+    else:
+        # no files at all
+        return []
+
+    return return_filenames
+
+
 # ------------------------------------------------------------------------------
 
 
@@ -228,8 +255,41 @@ def _fts_poll_job(context, job_id):
     return response['job_state']
 
 
-def _fts_submit_job(source_url, dest_url, filenames, checksum, overwrite,
-                    testing_folder, context, metadata):
+def _fts_poll_jobs(context, jobs):
+    """
+    """
+    logger = logging.getLogger()
+    finished_jobs = []
+    try:
+        while len(finished_jobs) < len(jobs):
+            for job_id in jobs:
+                if job_id in finished_jobs:
+                    continue
+                response = json.loads(context.get("/jobs/" + job_id))
+                if response['http_status'] == "200 Ok":
+                    if response["job_finished"]:
+                        finished_jobs.append(job_id)
+                        logger.info(
+                            'Job with id {} finished with job_state:{} | {}/{}'.
+                            format(job_id, response['job_state'],
+                                   len(finished_jobs), len(jobs)))
+                        logger.handlers[0].flush()
+                        break
+                else:
+                    logger.info('Server http status: {}'.format(
+                        response['http_status']))
+                    logger.handlers[0].flush()
+                    return None
+    except Exception as e:
+        logger.info("Polling failed:{}, response:{}".format(e, response))
+        logger.handlers[0].flush()
+        return None
+
+    return response['job_state']
+
+
+def _fts_submit_job(source_url, dest_url, src_filenames, dst_filenames,
+                    checksum, overwrite, testing_folder, context, metadata):
     """
     https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/easy/submission.py#L106
     """
@@ -237,9 +297,11 @@ def _fts_submit_job(source_url, dest_url, filenames, checksum, overwrite,
     logger = logging.getLogger()
 
     transfers = []
-    for filename in filenames:
-        source_file = os.path.join(source_url, testing_folder, "src", filename)
-        dest_file = os.path.join(dest_url, testing_folder, "dest", filename)
+    for i in xrange(len(src_filenames)):
+        source_file = os.path.join(source_url, testing_folder, "src",
+                                   src_filenames[i])
+        dest_file = os.path.join(dest_url, testing_folder, "dest",
+                                 dst_filenames[i])
         transfer = fts3.new_transfer(source=source_file, destination=dest_file)
         transfers.append(transfer)
 
@@ -320,11 +382,16 @@ def main():
                     prob_endpoints))
             logger.handlers[0].flush()
 
+        if cleanup:
+            sys.exit(1)
+
         # authenticate @ FTS endpoint
         # https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/context.py#L148
         logger.info('Authenticating at {}'.format(FTS_ENDPOINT))
         logger.handlers[0].flush()
         context = fts3.Context(FTS_ENDPOINT, verify=True)
+
+        job_id_list = []
 
         # for every job
         for _ in xrange(num_of_jobs):
@@ -355,38 +422,54 @@ def main():
                                 format(numfile, filesize))
                             logger.handlers[0].flush()
                             local_file_paths = []
-                            filenames = []
+                            dest_filenames = []
                             for nfile in xrange(numfile):
                                 random_suffix = str(uuid.uuid1())
                                 random_filename = "{}.{}".format(
                                     FILE_PREFIX, random_suffix)
-                                filenames.append(random_filename)
+                                dest_filenames.append(random_filename)
                                 file_path = os.path.join(
                                     LOCALPATH_TEMP_DIR, random_filename)
                                 with open(file_path, 'wb') as fout:
                                     fout.write(os.urandom(filesize * MB))
                                 local_file_paths.append(str(file_path))
 
-                            # upload files to the source for this job
-                            logger.info("Uploading files to source")
-                            logger.handlers[0].flush()
                             source_dir = os.path.join(source_url,
                                                       testing_folder, "src")
-                            rcode = _gfal_upload_files(local_file_paths,
-                                                       source_dir, filenames)
-                            if rcode == -1:
-                                abort_source = True
-                                break
+
+                            # check if source has adequate number of files of
+                            # the desired filesize
+                            logger.info("Checking source for existing files")
+                            logger.handlers[0].flush()
+                            src_filenames = _gfal_check_files(
+                                source_dir, filesize, numfile)
+
+                            if not src_filenames:
+                                for filename in dest_filenames:
+                                    src_filename = "{}_{}mb".format(
+                                        filename, filesize)
+                                    src_filenames.append(src_filename)
+                                # upload files to the source for this job
+                                logger.info("Uploading files to source")
+                                logger.handlers[0].flush()
+                                rcode = _gfal_upload_files(
+                                    local_file_paths, source_dir, src_filenames)
+                                if rcode == -1:
+                                    abort_source = True
+                                    break
 
                             # submit fts transfer
                             logger.info('Submitting FTS job')
                             logger.handlers[0].flush()
                             job_id = _fts_submit_job(source_url, dest_url,
-                                                     filenames, checksum,
+                                                     src_filenames,
+                                                     dest_filenames, checksum,
                                                      overwrite, testing_folder,
                                                      context, metadata)
                             logger.info('FTS job id:{}'.format(job_id))
                             logger.handlers[0].flush()
+
+                            job_id_list.append(job_id)
 
                             # remove files locally
                             logger.info(
@@ -395,6 +478,8 @@ def main():
                             logger.handlers[0].flush()
                             for file in local_file_paths:
                                 os.remove(file)
+
+        _fts_poll_jobs(context, job_id_list)
 
 
 if __name__ == '__main__':

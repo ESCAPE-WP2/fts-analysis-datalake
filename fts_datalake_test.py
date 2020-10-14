@@ -169,7 +169,7 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
         except Exception as e:
             logger.info("gfal-ls failed:{}, endpoint:{}".format(e, endpnt))
             logger.handlers[0].flush()
-            problematic_endpoints.append(endpnt)
+            problematic_endpoints.append(endpnt.split("://")[1])
             continue
 
         base_dir = os.path.join(endpnt, testing_folder)
@@ -190,10 +190,20 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
                 logger.handlers[0].flush()
                 problematic_endpoints.append(endpnt)
                 continue
+        else:
+            dir_names = context.listdir(str(base_dir))
+            if "src" not in dir_names:
+                logger.info('gfal-mkdir {}'.format(src_dir))
+                logger.handlers[0].flush()
+                context.mkdir(str(src_dir), 0775)
+            if "dest" not in dir_names:
+                logger.info('gfal-mkdir {}'.format(dest_dir))
+                logger.handlers[0].flush()
+                context.mkdir(str(dest_dir), 0775)
 
         if cleanup:
             _gfal_clean_up_dir(dest_dir)
-            _gfal_clean_up_dir(src_dir)
+            # _gfal_clean_up_dir(src_dir)
 
     return problematic_endpoints
 
@@ -216,7 +226,7 @@ def _gfal_check_files(directory, filesize, numfile):
             if file.endswith("{}mb".format(filesize)):
                 return_filenames.append(file)
         if len(return_filenames) < numfile:
-            # we have less files if filesize than we want
+            # we have less files of filesize than we want
             return []
     else:
         # no files at all
@@ -255,37 +265,50 @@ def _fts_poll_job(context, job_id):
     return response['job_state']
 
 
-def _fts_poll_jobs(context, jobs):
+def _fts_wait_jobs(context, job_map_list):
     """
     """
     logger = logging.getLogger()
     finished_jobs = []
     try:
-        while len(finished_jobs) < len(jobs):
-            for job_id in jobs:
+        while len(finished_jobs) < len(job_map_list):
+            for job_map in job_map_list:
+                job_id = job_map['job_id']
                 if job_id in finished_jobs:
                     continue
-                response = json.loads(context.get("/jobs/" + job_id))
+                response = fts3.get_job_status(context, job_id, list_files=True)
                 if response['http_status'] == "200 Ok":
                     if response["job_finished"]:
                         finished_jobs.append(job_id)
                         logger.info(
                             'Job with id {} finished with job_state:{} | {}/{}'.
                             format(job_id, response['job_state'],
-                                   len(finished_jobs), len(jobs)))
+                                   len(finished_jobs), len(job_map_list)))
                         logger.handlers[0].flush()
+
+                        if response['job_state'] == "FINISHED":
+                            _gfal_rm_files(job_map['files_to_purge'],
+                                           job_map['directory'])
+                        else:
+                            filenames = []
+                            for file_map in response['files']:
+                                if file_map['file_state'] == 'FINISHED':
+                                    filenames.append(
+                                        file_map['dest_surl'].split(
+                                            "/dest/")[1])
+                            _gfal_rm_files(filenames, job_map['directory'])
                         break
                 else:
                     logger.info('Server http status: {}'.format(
                         response['http_status']))
                     logger.handlers[0].flush()
-                    return None
+
     except Exception as e:
         logger.info("Polling failed:{}, response:{}".format(e, response))
         logger.handlers[0].flush()
         return None
 
-    return response['job_state']
+    return None
 
 
 def _fts_submit_job(source_url, dest_url, src_filenames, dst_filenames,
@@ -391,7 +414,7 @@ def main():
         logger.handlers[0].flush()
         context = fts3.Context(FTS_ENDPOINT, verify=True)
 
-        job_id_list = []
+        job_map_list = []
 
         # for every job
         for _ in xrange(num_of_jobs):
@@ -402,25 +425,22 @@ def main():
                     abort_source = False
                     source_url = "{}://{}".format(protocol, endpnt_pair[0])
                     dest_url = "{}://{}".format(protocol, endpnt_pair[1])
-                    if source_url in prob_endpoints:
+                    if endpnt_pair[0] in prob_endpoints or endpnt_pair[
+                            1] in prob_endpoints:
                         continue
-                    if dest_url in prob_endpoints:
-                        continue
-                    logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                    logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
                     logger.info("Source: {}".format(source_url))
                     logger.info("Destination: {}".format(dest_url))
                     logger.handlers[0].flush()
                     # for every filesize combination
                     for filesize in filesize_list:
-                        # for every files per job combination
                         if abort_source:
                             break
+
+                        # for every files per job combination
                         for numfile in num_of_files_list:
-                            # for every file of the job
-                            logger.info(
-                                "Generating {} random files of size:{}MB".
-                                format(numfile, filesize))
-                            logger.handlers[0].flush()
+
+                            # configure destination filenames
                             local_file_paths = []
                             dest_filenames = []
                             for nfile in xrange(numfile):
@@ -430,8 +450,6 @@ def main():
                                 dest_filenames.append(random_filename)
                                 file_path = os.path.join(
                                     LOCALPATH_TEMP_DIR, random_filename)
-                                with open(file_path, 'wb') as fout:
-                                    fout.write(os.urandom(filesize * MB))
                                 local_file_paths.append(str(file_path))
 
                             source_dir = os.path.join(source_url,
@@ -439,16 +457,30 @@ def main():
 
                             # check if source has adequate number of files of
                             # the desired filesize
-                            logger.info("Checking source for existing files")
+                            logger.info(
+                                "Checking source for {} existing {}MB files".
+                                format(numfile, filesize))
                             logger.handlers[0].flush()
                             src_filenames = _gfal_check_files(
                                 source_dir, filesize, numfile)
 
+                            remove_local_files = False
                             if not src_filenames:
+                                remove_local_files = True
                                 for filename in dest_filenames:
                                     src_filename = "{}_{}mb".format(
                                         filename, filesize)
                                     src_filenames.append(src_filename)
+
+                                # generate random files localy
+                                logger.info(
+                                    "Generating {} random files of size:{}MB".
+                                    format(numfile, filesize))
+                                logger.handlers[0].flush()
+                                for file_path in local_file_paths:
+                                    with open(file_path, 'wb') as fout:
+                                        fout.write(os.urandom(filesize * MB))
+
                                 # upload files to the source for this job
                                 logger.info("Uploading files to source")
                                 logger.handlers[0].flush()
@@ -469,17 +501,25 @@ def main():
                             logger.info('FTS job id:{}'.format(job_id))
                             logger.handlers[0].flush()
 
-                            job_id_list.append(job_id)
+                            job_map = {}
+                            job_map['job_id'] = job_id
+                            job_map['directory'] = os.path.join(
+                                dest_url, testing_folder, "dest")
+                            job_map['files_to_purge'] = dest_filenames
+                            job_map_list.append(job_map)
 
-                            # remove files locally
-                            logger.info(
-                                "Removing files from LOCALPATH: {}".format(
-                                    LOCALPATH_TEMP_DIR))
-                            logger.handlers[0].flush()
-                            for file in local_file_paths:
-                                os.remove(file)
+                            if remove_local_files:
+                                # remove files locally
+                                logger.info(
+                                    "Removing files from LOCALPATH: {}".format(
+                                        LOCALPATH_TEMP_DIR))
+                                logger.handlers[0].flush()
+                                for file in local_file_paths:
+                                    os.remove(file)
 
-        _fts_poll_jobs(context, job_id_list)
+        logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        logger.handlers[0].flush()
+        _fts_wait_jobs(context, job_map_list)
 
 
 if __name__ == '__main__':

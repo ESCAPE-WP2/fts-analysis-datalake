@@ -374,10 +374,16 @@ def main():
                         action='store_true',
                         default=False,
                         help="Clean up src/dst directories")
+    parser.add_argument("--exit",
+                        required=False,
+                        action='store_true',
+                        default=False,
+                        help="Exit after cleanup")
 
     arg = parser.parse_args()
     conf_file = str(arg.conf_file)
     cleanup = arg.cleanup
+    exit = arg.exit
 
     logging.basicConfig(format='%(asctime)s %(message)s',
                         datefmt='%d/%m/%Y %I:%M:%S %p',
@@ -416,8 +422,8 @@ def main():
                     prob_endpoints))
             logger.handlers[0].flush()
 
-        # if cleanup:
-        #     sys.exit(1)
+        if exit:
+            sys.exit(1)
 
         # authenticate @ FTS endpoint
         # https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/context.py#L148

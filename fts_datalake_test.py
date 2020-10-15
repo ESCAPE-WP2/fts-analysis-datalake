@@ -213,7 +213,7 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
                 context.mkdir(str(dest_dir), 0775)
 
         if cleanup:
-            _gfal_clean_up_dir(dest_dir, hours=4)
+            _gfal_clean_up_dir(dest_dir, hours=6)
             # _gfal_clean_up_dir(src_dir)
 
     return problematic_endpoints
@@ -416,8 +416,8 @@ def main():
                     prob_endpoints))
             logger.handlers[0].flush()
 
-        if cleanup:
-            sys.exit(1)
+        # if cleanup:
+        #     sys.exit(1)
 
         # authenticate @ FTS endpoint
         # https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/context.py#L148

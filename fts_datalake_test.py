@@ -7,12 +7,12 @@ import uuid
 import gfal2
 import errno
 import argparse
-import datetime
 import logging
 import requests
 import itertools
 import fts3.rest.client.easy as fts3
 import fts3.rest.client.exceptions as fts3_client_exceptions
+from datetime import datetime
 
 # CONFIG VARIABLES
 FILE_PREFIX = "fts.testfile"
@@ -24,7 +24,7 @@ MB = 1048576
 # ------------------------------------------------------------------------------
 
 
-def _gfal_clean_up_dir(directory):
+def _gfal_clean_up_dir(directory, hours=24):
     """
     Remove all files from a directory
 
@@ -40,21 +40,32 @@ def _gfal_clean_up_dir(directory):
 
     filenames = context.listdir(str(directory))
     if filenames:
-        logger.info('gfal-rm (x{}) {}'.format(len(filenames), directory))
+        logger.info('gfal-ls (x{}) {}'.format(len(filenames), directory))
         logger.handlers[0].flush()
+
+        actually_deleted = 0
         for file in filenames:
             gfal_file = os.path.join(directory, file)
             try:
-                error = context.unlink(str(gfal_file))
-                if not error:
-                    pass
-                else:
-                    logger.info("error:{}").format(error)
+                info = context.lstat(str(gfal_file))
+                file_time = datetime.fromtimestamp(info.st_mtime)
+                now = datetime.now()
+                diff_time = now - file_time
+                if diff_time.seconds / 60 / 60 > hours:
+                    error = context.unlink(str(gfal_file))
+                    if not error:
+                        actually_deleted += 1
+                    else:
+                        logger.info("error:{}").format(error)
             except Exception as e:
                 logger.info("gfal-rm failed:{}, gfal_file:{}".format(
                     e, gfal_file))
                 logger.handlers[0].flush()
-                return -1
+                continue
+
+        logger.info('gfal-rm (x{} | hours={}) {}'.format(
+            actually_deleted, hours, directory))
+        logger.handlers[0].flush()
     return None
 
 
@@ -202,7 +213,7 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
                 context.mkdir(str(dest_dir), 0775)
 
         if cleanup:
-            _gfal_clean_up_dir(dest_dir)
+            _gfal_clean_up_dir(dest_dir, hours=4)
             # _gfal_clean_up_dir(src_dir)
 
     return problematic_endpoints

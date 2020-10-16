@@ -9,3 +9,4 @@ export X509_USER_PROXY=/tmp/x509up_u127450
 mkdir -p $LOCALPATH
 
 python fts_datalake_test.py -i conf/datalake.json --cleanup
+python fts_datalake_test.py -i conf/lapp_webdav.json --cleanup

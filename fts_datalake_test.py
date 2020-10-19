@@ -97,7 +97,7 @@ def _gfal_rm_files(filenames, directory):
         except Exception as e:
             logger.info("gfal-rm failed:{}, gfal_file:{}".format(e, gfal_file))
             logger.handlers[0].flush()
-            return -1
+            continue
     return None
 
 
@@ -213,7 +213,7 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
                 context.mkdir(str(dest_dir), 0775)
 
         if cleanup:
-            _gfal_clean_up_dir(dest_dir, hours=6)
+            _gfal_clean_up_dir(dest_dir, hours=2)
             # _gfal_clean_up_dir(src_dir)
 
     return problematic_endpoints
@@ -281,9 +281,9 @@ def _fts_wait_jobs(context, job_map_list):
     """
     logger = logging.getLogger()
     finished_jobs = []
-    try:
-        while len(finished_jobs) < len(job_map_list):
-            for job_map in job_map_list:
+    while len(finished_jobs) < len(job_map_list):
+        for job_map in job_map_list:
+            try:
                 job_id = job_map['job_id']
                 if job_id in finished_jobs:
                     continue
@@ -313,11 +313,11 @@ def _fts_wait_jobs(context, job_map_list):
                     logger.info('Server http status: {}'.format(
                         response['http_status']))
                     logger.handlers[0].flush()
-
-    except Exception as e:
-        logger.info("Polling failed:{}, response:{}".format(e, response))
-        logger.handlers[0].flush()
-        return None
+            except Exception as e:
+                logger.info("Polling failed:{}, response:{}".format(
+                    e, response))
+                logger.handlers[0].flush()
+                continue
 
     return None
 

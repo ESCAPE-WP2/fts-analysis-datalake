@@ -18,7 +18,7 @@ from datetime import datetime
 FILE_PREFIX = "fts.testfile"
 FTS_ENDPOINT = "https://fts3-pilot.cern.ch:8446"
 DEFAULT_LOCALPATH = "/tmp/ridona/temp_files_fts"
-LOCALPATH_TEMP_DIR = os.getenv("LOCALPATH", DEFAULT_LOCALPATH)
+LOCALPATH_TEMP_DIR = os.getenv("FTS_LOCALPATH", DEFAULT_LOCALPATH)
 MB = 1048576
 
 # ------------------------------------------------------------------------------

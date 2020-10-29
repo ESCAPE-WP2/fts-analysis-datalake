@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import re
 import sys
 import json
 import uuid
@@ -411,8 +412,10 @@ def main():
             protocol_endpoints = protocol_map[protocol]
             for endpoint in protocol_endpoints:
                 endpoint_t = endpoint.split(":", 1)[0]
-                if endpoint_t not in endpoint_tlist:
-                    endpoint_tlist.append(endpoint_t)
+                endpoint_e = re.split('[0-9]*', endpoint.split(":", 1)[1], 1)[1]
+                endpoint_ft = endpoint_t + endpoint_e
+                if endpoint_ft not in endpoint_tlist:
+                    endpoint_tlist.append(endpoint_ft)
                     endpoints.append("{}://{}".format(protocol, endpoint))
         del endpoint_tlist
         prob_endpoints = _gfal_setup_folders(endpoints, testing_folder, cleanup)

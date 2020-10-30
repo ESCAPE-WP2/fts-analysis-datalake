@@ -39,7 +39,13 @@ def _gfal_clean_up_dir(directory, hours=24):
     logger = logging.getLogger()
     context = gfal2.creat_context()
 
-    filenames = context.listdir(str(directory))
+    try:
+        filenames = context.listdir(str(directory))
+    except Exception as e:
+        logger.info("gfal-ls failed:{}, endpoint:{}".format(e, directory))
+        logger.handlers[0].flush()
+        return -1
+
     if filenames:
         logger.info('gfal-ls (x{}) {}'.format(len(filenames), directory))
         logger.handlers[0].flush()
@@ -228,7 +234,14 @@ def _gfal_check_files(directory, filesize, numfile):
     context = gfal2.creat_context()
 
     return_filenames = []
-    filenames = context.listdir(str(directory))
+
+    try:
+        filenames = context.listdir(str(directory))
+    except Exception as e:
+        logger.info("gfal-ls failed:{}, endpoint:{}".format(e, directory))
+        logger.handlers[0].flush()
+        return -1
+
     if filenames:
         # we have files
         if len(filenames) < numfile:
@@ -483,6 +496,10 @@ def main():
                             logger.handlers[0].flush()
                             src_filenames = _gfal_check_files(
                                 source_dir, filesize, numfile)
+
+                            if src_filenames == -1:
+                                abort_source = True
+                                break
 
                             remove_local_files = False
                             if not src_filenames:

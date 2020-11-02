@@ -327,10 +327,13 @@ def _fts_wait_jobs(context, job_map_list):
                     logger.info('Server http status: {}'.format(
                         response['http_status']))
                     logger.handlers[0].flush()
+                    finished_jobs.append(job_id)
+                    continue
             except Exception as e:
                 logger.info("Polling failed:{}, response:{}".format(
                     e, response))
                 logger.handlers[0].flush()
+                finished_jobs.append(job_id)
                 continue
 
     return None

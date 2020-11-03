@@ -129,7 +129,7 @@ def _gfal_upload_files(local_file_paths, directory, filenames):
     # set transfer parameters
     params = context.transfer_parameters()
     params.overwrite = False
-    params.checksum_check = False
+    params.checksum_check = True
 
     sources = []
     destinations = []

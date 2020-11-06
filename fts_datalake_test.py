@@ -458,6 +458,12 @@ def main():
                 protocol_endpoints = protocol_map[protocol]
                 endpnt_pairs = itertools.permutations(protocol_endpoints, 2)
                 for endpnt_pair in endpnt_pairs:
+                    # ad-hoc temp solution for lapp-webdav
+                    if endpnt_pair[0] == "lapp-esc02.in2p3.fr:8001/webdav":
+                        checksum = "none"
+                    if endpnt_pair[1] == "lapp-esc02.in2p3.fr:8001/webdav":
+                        checksum = "none"
+                    # --
                     abort_source = False
                     source_url = "{}://{}".format(protocol, endpnt_pair[0])
                     dest_url = "{}://{}".format(protocol, endpnt_pair[1])

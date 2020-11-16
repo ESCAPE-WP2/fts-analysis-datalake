@@ -1,0 +1,50 @@
+{
+    "num_of_files": [
+        4
+    ], 
+    "testing_folder": "fts-testing", 
+    "overwrite": false, 
+    "checksum": "both", 
+    "num_of_jobs": 1, 
+    "filesizes": [
+        1000
+    ], 
+    "protocols": {
+        "davs": [
+            "door05.pic.es:8452//rucio/pic_dcache", 
+            "dcache-door-doma01.desy.de:2880//escape/wp2_rucio_testbed/desy_dcache", 
+            "eoseulake.cern.ch:443/eos/eulake/tests/rucio_test/eulake_1", 
+            "ccdcalitest10.in2p3.fr:2880//pnfs/in2p3.fr/data/escape/cc_in2p3_dcache", 
+            "t2-dpm-dome.na.infn.it:443//dpm/na.infn.it/home/escape/infn_na_dpm", 
+            "lapp-testse01.in2p3.fr:443/dpm/in2p3.fr/home/escape/rucio/lapp_dpm", 
+            "t2-dpm-dome.na.infn.it:443//dpm/fed-t2.infn.it/home/escape", 
+            "dclxwp2dlds1.gsi.de:443//escape/gsi_root", 
+            "webdav.grid.sara.nl:2882//pnfs/grid.sara.nl/data/escape/disk/rucio/sara_dcache", 
+            "xfer.cr.cnaf.infn.it:8443/escape/rucio/cnaf_storm", 
+            "lapp-dcache01.in2p3.fr:2880//data/escape/rucio/lapp_dcache"
+        ], 
+        "root": [
+            "xrootd.pic.es:1094//pnfs/pic.es/data/escape/rucio/pic_dcache", 
+            "dcache-se-doma.desy.de:1094//escape/wp2_rucio_testbed/desy_dcache", 
+            "eoseulake.cern.ch:1094//eos/eulake/tests/rucio_test/eulake_1", 
+            "ccdcalitest10.in2p3.fr:1094//pnfs/in2p3.fr/data/escape/cc_in2p3_dcache", 
+            "t2-dpm-dome.na.infn.it:1094//dpm/na.infn.it/home/escape/infn_na_dpm", 
+            "lapp-testse01.in2p3.fr:1094//dpm/in2p3.fr/home/escape/rucio/lapp_dpm", 
+            "t2-dpm-dome.na.infn.it:1094//dpm/fed-t2.infn.it/home/escape", 
+            "dclxwp2dlds1.gsi.de:1094//escape/gsi_root", 
+            "lobster10.grid.surfsara.nl:1094//pnfs/grid.sara.nl/data/escape/disk/rucio/sara_dcache"
+        ], 
+        "gsiftp": [
+            "dcache-door-doma01.desy.de:2811//escape/wp2_rucio_testbed/desy_dcache", 
+            "eulakeftp.cern.ch:2811/eos/eulake/tests/rucio_test/eulake_1", 
+            "ccdcalitest10.in2p3.fr:2811//pnfs/in2p3.fr/data/escape/cc_in2p3_dcache", 
+            "t2-dpm-dome.na.infn.it:2811//dpm/na.infn.it/home/escape/infn_na_dpm", 
+            "lapp-testse01.in2p3.fr:2811/dpm/in2p3.fr/home/escape/rucio/lapp_dpm", 
+            "t2-dpm-dome.na.infn.it:2811//dpm/fed-t2.infn.it/home/escape", 
+            "gridftp.grid.sara.nl:2811//pnfs/grid.sara.nl/data/escape/disk/rucio/sara_dcache"
+        ]
+    }, 
+    "metadata": {
+        "activity": "functional-testing"
+    }
+}

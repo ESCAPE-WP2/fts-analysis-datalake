@@ -8,6 +8,6 @@ export X509_USER_PROXY=/tmp/x509up_u127450
 
 mkdir -p $FTS_LOCALPATH
 
-python fts_datalake_test.py -i conf/datalake.json --cleanup --exit
-python fts_datalake_test.py -i conf/datalake.json
-python fts_datalake_test.py -i conf/lapp_webdav.json
+python fts_datalake_test.py -i conf/datalake_all_1mb.json --cleanup --exit
+python fts_datalake_test.py -i conf/datalake_all_except_lapp_webdav_1000mb.json
+python fts_datalake_test.py -i conf/datalake_all_1mb.json

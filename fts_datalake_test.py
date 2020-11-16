@@ -24,8 +24,24 @@ MB = 1048576
 
 # ------------------------------------------------------------------------------
 
+logging.basicConfig(format='%(asctime)s %(message)s',
+                    datefmt='%d/%m/%Y %I:%M:%S %p',
+                    level=logging.INFO)
+logging.getLogger("gfal2").setLevel(logging.WARNING)
+logger = logging.getLogger()
 
-def _gfal_clean_up_dir(directory, hours=24):
+
+def _flush_logging_msg(msg):
+    """
+    """
+    logger.info(msg)
+    logger.handlers[0].flush()
+
+
+# ------------------------------------------------------------------------------
+
+
+def _gfal_clean_up_dir(directory, hours=24, timeout=300):
     """
     Remove all files from a directory
 
@@ -36,19 +52,20 @@ def _gfal_clean_up_dir(directory, hours=24):
         None if successful
         -1 if error
     """
-    logger = logging.getLogger()
     context = gfal2.creat_context()
+    params = context.transfer_parameters()
+    params.timeout = timeout
 
+    _flush_logging_msg('gfal-ls {}'.format(directory))
     try:
         filenames = context.listdir(str(directory))
     except Exception as e:
-        logger.info("gfal-ls failed:{}, endpoint:{}".format(e, directory))
-        logger.handlers[0].flush()
+        _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
+            e, directory))
         return -1
 
     if filenames:
-        logger.info('gfal-ls (x{}) {}'.format(len(filenames), directory))
-        logger.handlers[0].flush()
+        _flush_logging_msg('gfal-ls (x{}) {}'.format(len(filenames), directory))
 
         actually_deleted = 0
         for file in filenames:
@@ -63,20 +80,18 @@ def _gfal_clean_up_dir(directory, hours=24):
                     if not error:
                         actually_deleted += 1
                     else:
-                        logger.info("error:{}").format(error)
+                        _flush_logging_msg("error:{}").format(error)
             except Exception as e:
-                logger.info("gfal-rm failed:{}, gfal_file:{}".format(
+                _flush_logging_msg("gfal-rm failed:{}, gfal_file:{}".format(
                     e, gfal_file))
-                logger.handlers[0].flush()
                 continue
 
-        logger.info('gfal-rm (x{} | hours={}) {}'.format(
+        _flush_logging_msg('gfal-rm (x{} | hours={}) {}'.format(
             actually_deleted, hours, directory))
-        logger.handlers[0].flush()
     return None
 
 
-def _gfal_rm_files(filenames, directory):
+def _gfal_rm_files(filenames, directory, timeout=300):
     """
     Remove files from a directory
 
@@ -88,11 +103,11 @@ def _gfal_rm_files(filenames, directory):
         None if successful
         -1 if error
     """
-    logger = logging.getLogger()
     context = gfal2.creat_context()
+    params = context.transfer_parameters()
+    params.timeout = timeout
 
-    logger.info('gfal-rm (x{}) {}'.format(len(filenames), directory))
-    logger.handlers[0].flush()
+    _flush_logging_msg('gfal-rm (x{}) {}'.format(len(filenames), directory))
     for file in filenames:
         gfal_file = os.path.join(directory, file)
         try:
@@ -100,15 +115,15 @@ def _gfal_rm_files(filenames, directory):
             if not error:
                 pass
             else:
-                logger.info("error:{}").format(error)
+                _flush_logging_msg("error:{}").format(error)
         except Exception as e:
-            logger.info("gfal-rm failed:{}, gfal_file:{}".format(e, gfal_file))
-            logger.handlers[0].flush()
+            _flush_logging_msg("gfal-rm failed:{}, gfal_file:{}".format(
+                e, gfal_file))
             continue
     return None
 
 
-def _gfal_upload_files(local_file_paths, directory, filenames):
+def _gfal_upload_files(local_file_paths, directory, filenames, timeout=300):
     """
     Upload files to a directory
 
@@ -122,14 +137,12 @@ def _gfal_upload_files(local_file_paths, directory, filenames):
         -1 if error
 
     """
-
-    logger = logging.getLogger()
-    context = gfal2.creat_context()
-
     # set transfer parameters
+    context = gfal2.creat_context()
     params = context.transfer_parameters()
     params.overwrite = False
     params.checksum_check = True
+    params.timeout = timeout
 
     sources = []
     destinations = []
@@ -140,8 +153,7 @@ def _gfal_upload_files(local_file_paths, directory, filenames):
         sources.append(str(gfal_file))
         destinations.append(str(os.path.join(directory, filename)))
 
-    logger.info('gfal-copy (x{}) {}'.format(len(sources), directory))
-    logger.handlers[0].flush()
+    _flush_logging_msg('gfal-copy (x{}) {}'.format(len(sources), directory))
     try:
         for i in xrange(len(sources)):
             src = sources[i]
@@ -149,21 +161,22 @@ def _gfal_upload_files(local_file_paths, directory, filenames):
             error = context.filecopy(params, src, dst)
             if not error:
                 pass
-                # logger.info("{} => {} succeeded!".format(src, dst))
+                # _flush_logging_msg("{} => {} succeeded!".format(src, dst))
             else:
-                logger.info("{} => {} failed [{}] {}".format(
+                _flush_logging_msg("{} => {} failed [{}] {}".format(
                     src, dst, error.code, error.message))
-                logger.handlers[0].flush()
                 return -1
     except Exception as e:
-        logger.info("Copy failed: {}".format(e))
-        logger.handlers[0].flush()
+        _flush_logging_msg("Copy failed: {}".format(e))
         return -1
 
     return None
 
 
-def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
+def _gfal_setup_folders(endpnt_list,
+                        testing_folder,
+                        cleanup=False,
+                        timeout=300):
     """
     Setup folders at endpoint
 
@@ -172,22 +185,23 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
         testing_folder(str): Folder name to remove/create
     Returns: None
     """
-    logger = logging.getLogger()
     context = gfal2.creat_context()
+    params = context.transfer_parameters()
+    params.timeout = timeout
 
     problematic_endpoints = []
 
     # for each endpoint
     for endpnt in endpnt_list:
+        endpnt_noprotocol = endpnt.split("://")[1]
         # list directories/files
-        logger.info('gfal-ls {}'.format(endpnt))
-        logger.handlers[0].flush()
+        _flush_logging_msg('gfal-ls {}'.format(endpnt))
         try:
             dir_names = context.listdir(endpnt)
         except Exception as e:
-            logger.info("gfal-ls failed:{}, endpoint:{}".format(e, endpnt))
-            logger.handlers[0].flush()
-            problematic_endpoints.append(endpnt.split("://")[1])
+            _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
+                e, endpnt))
+            problematic_endpoints.append(endpnt_noprotocol)
             continue
 
         base_dir = os.path.join(endpnt, testing_folder)
@@ -197,49 +211,65 @@ def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
         # if folder does not exist
         if testing_folder not in dir_names:
             # create folder
-            logger.info('gfal-mkdir {}'.format(base_dir))
-            logger.handlers[0].flush()
+            _flush_logging_msg('gfal-mkdir {}'.format(base_dir))
             try:
                 context.mkdir(str(base_dir), 0775)
                 context.mkdir(str(src_dir), 0775)
                 context.mkdir(str(dest_dir), 0775)
             except Exception as e:
-                logger.info("gfal-mkdir failed:{}, dir:{}".format(e, base_dir))
-                logger.handlers[0].flush()
-                problematic_endpoints.append(endpnt)
+                _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
+                    e, base_dir))
+                problematic_endpoints.append(endpnt_noprotocol)
                 continue
         else:
-            dir_names = context.listdir(str(base_dir))
+            try:
+                dir_names = context.listdir(str(base_dir))
+            except Exception as e:
+                _flush_logging_msg("gfal-ls failed:{}, dir:{}".format(
+                    e, base_dir))
+                problematic_endpoints.append(endpnt_noprotocol)
+                continue
             if "src" not in dir_names:
-                logger.info('gfal-mkdir {}'.format(src_dir))
-                logger.handlers[0].flush()
-                context.mkdir(str(src_dir), 0775)
+                _flush_logging_msg('gfal-mkdir {}'.format(src_dir))
+                try:
+                    context.mkdir(str(src_dir), 0775)
+                except Exception as e:
+                    _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
+                        e, base_dir))
+                    problematic_endpoints.append(endpnt_noprotocol)
+                    continue
             if "dest" not in dir_names:
-                logger.info('gfal-mkdir {}'.format(dest_dir))
-                logger.handlers[0].flush()
-                context.mkdir(str(dest_dir), 0775)
-
+                _flush_logging_msg('gfal-mkdir {}'.format(dest_dir))
+                try:
+                    context.mkdir(str(dest_dir), 0775)
+                except Exception as e:
+                    _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
+                        e, dest_dir))
+                    problematic_endpoints.append(endpnt_noprotocol)
+                    continue
         if cleanup:
+            _flush_logging_msg(
+                "Cleaning up destination folder: {}".format(dest_dir))
             _gfal_clean_up_dir(dest_dir, hours=2)
-            # _gfal_clean_up_dir(src_dir)
 
     return problematic_endpoints
 
 
-def _gfal_check_files(directory, filesize, numfile):
+def _gfal_check_files(directory, filesize, numfile, timeout=300):
     """
     """
-
-    logger = logging.getLogger()
     context = gfal2.creat_context()
+    params = context.transfer_parameters()
+    params.timeout = timeout
 
     return_filenames = []
 
+    _flush_logging_msg('gfal-ls {}'.format(directory))
     try:
         filenames = context.listdir(str(directory))
     except Exception as e:
-        logger.info("gfal-ls failed:{}, endpoint:{}".format(e, directory))
-        logger.handlers[0].flush()
+        _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
+            e, directory))
         return -1
 
     if filenames:
@@ -266,25 +296,21 @@ def _gfal_check_files(directory, filesize, numfile):
 def _fts_poll_job(context, job_id):
     """
     """
-    logger = logging.getLogger()
     try:
         while True:
             response = json.loads(context.get("/jobs/" + job_id))
             if response['http_status'] == "200 Ok":
                 if response["job_finished"]:
-                    logger.info(
+                    _flush_logging_msg(
                         'Job with id {} finished with job_state:{}'.format(
                             job_id, response['job_state']))
-                    logger.handlers[0].flush()
                     break
             else:
-                logger.info('Server http status: {}'.format(
+                _flush_logging_msg('Server http status: {}'.format(
                     response['http_status']))
-                logger.handlers[0].flush()
                 return None
     except Exception as e:
-        logger.info("Polling failed:{}, response:{}".format(e, response))
-        logger.handlers[0].flush()
+        _flush_logging_msg("Polling failed:{}, response:{}".format(e, response))
         return None
 
     return response['job_state']
@@ -293,7 +319,6 @@ def _fts_poll_job(context, job_id):
 def _fts_wait_jobs(context, job_map_list):
     """
     """
-    logger = logging.getLogger()
     finished_jobs = []
     while len(finished_jobs) < len(job_map_list):
         for job_map in job_map_list:
@@ -305,11 +330,10 @@ def _fts_wait_jobs(context, job_map_list):
                 if response['http_status'] == "200 Ok":
                     if response["job_finished"]:
                         finished_jobs.append(job_id)
-                        logger.info(
+                        _flush_logging_msg(
                             'Job with id {} finished with job_state:{} | {}/{}'.
                             format(job_id, response['job_state'],
                                    len(finished_jobs), len(job_map_list)))
-                        logger.handlers[0].flush()
 
                         if response['job_state'] == "FINISHED":
                             _gfal_rm_files(job_map['files_to_purge'],
@@ -321,18 +345,18 @@ def _fts_wait_jobs(context, job_map_list):
                                     filenames.append(
                                         file_map['dest_surl'].split(
                                             "/dest/")[1])
+                            _flush_logging_msg(
+                                "Removing testing files from destination")
                             _gfal_rm_files(filenames, job_map['directory'])
                         break
                 else:
-                    logger.info('Server http status: {}'.format(
+                    _flush_logging_msg('Server http status: {}'.format(
                         response['http_status']))
-                    logger.handlers[0].flush()
                     finished_jobs.append(job_id)
                     continue
             except Exception as e:
-                logger.info("Polling failed:{}, response:{}".format(
+                _flush_logging_msg("Polling failed:{}, response:{}".format(
                     e, response))
-                logger.handlers[0].flush()
                 finished_jobs.append(job_id)
                 continue
 
@@ -344,8 +368,6 @@ def _fts_submit_job(source_url, dest_url, src_filenames, dst_filenames,
     """
     https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/easy/submission.py#L106
     """
-
-    logger = logging.getLogger()
 
     transfers = []
     for i in xrange(len(src_filenames)):
@@ -369,8 +391,7 @@ def _fts_submit_job(source_url, dest_url, src_filenames, dst_filenames,
             job_id = fts3.submit(context, job)
             break
         except fts3_client_exceptions.ClientError as e:
-            logger.info(e)
-            logger.handlers[0].flush()
+            _flush_logging_msg(e)
 
     return job_id
 
@@ -402,12 +423,7 @@ def main():
     cleanup = arg.cleanup
     exit = arg.exit
 
-    logging.basicConfig(format='%(asctime)s %(message)s',
-                        datefmt='%d/%m/%Y %I:%M:%S %p',
-                        level=logging.INFO)
-    logging.getLogger("gfal2").setLevel(logging.WARNING)
-    logger = logging.getLogger()
-
+    # open configuration file to get test details
     with open(conf_file) as json_file:
         data = json.load(json_file)
 
@@ -421,44 +437,59 @@ def main():
         overwrite = data["overwrite"]
         metadata = data['metadata']
 
-        # setup folders at the testing endpoints if needed
+        # figure out the unique endpoints from the configuration
         endpoints = []
         endpoint_tlist = []
         for protocol in protocol_map:
             protocol_endpoints = protocol_map[protocol]
             for endpoint in protocol_endpoints:
+                # example: endpoint = door05.pic.es:8452//rucio/pic_dcache
                 endpoint_t = endpoint.split(":", 1)[0]
+                # example: endpoint_t = door05.pic.es
                 endpoint_e = re.split('[0-9]*', endpoint.split(":", 1)[1], 1)[1]
+                # example: endpoint_e = //rucio/pic_dcache
                 endpoint_ft = endpoint_t + endpoint_e
                 if endpoint_ft not in endpoint_tlist:
                     endpoint_tlist.append(endpoint_ft)
                     endpoints.append("{}://{}".format(protocol, endpoint))
         del endpoint_tlist
+
+        # setup folders at the testing endpoints if needed
+        _flush_logging_msg("Setting up folders at endpoints")
         prob_endpoints = _gfal_setup_folders(endpoints, testing_folder, cleanup)
+
+        # we have some problematic endpoints
         if prob_endpoints:
-            logger.info(
+            _flush_logging_msg(
                 "Problematic endpoints (will not be tested): {})".format(
                     prob_endpoints))
-            logger.handlers[0].flush()
 
+        # the script is used as a setup script so do not perform testing
         if exit:
             sys.exit(1)
 
+        # ----------------------------------------------------------------------
+
         # authenticate @ FTS endpoint
         # https://gitlab.cern.ch/fts/fts-rest/-/blob/develop/src/fts3/rest/client/context.py#L148
-        logger.info('Authenticating at {}'.format(FTS_ENDPOINT))
-        logger.handlers[0].flush()
+        _flush_logging_msg('Authenticating at {}'.format(FTS_ENDPOINT))
         context = fts3.Context(FTS_ENDPOINT, verify=True)
 
+        # list that holds a dictionary per each job
+        # this is later used to poll for the jobs until they finish
         job_map_list = []
 
         # for every job
         for _ in xrange(num_of_jobs):
+            # for every protocol to be checked
             for protocol in protocol_map:
+                # get endpoints
                 protocol_endpoints = protocol_map[protocol]
+                # create unique pairs of 2s (source destionation)
                 endpnt_pairs = itertools.permutations(protocol_endpoints, 2)
+                # for every pair
                 for endpnt_pair in endpnt_pairs:
-                    # ad-hoc temp solution for lapp-webdav
+                    # ad-hoc temp solution for lapp-webdav - remove checksum
                     if endpnt_pair[0] == "lapp-esc02.in2p3.fr:8001/webdav":
                         checksum = "none"
                     if endpnt_pair[1] == "lapp-esc02.in2p3.fr:8001/webdav":
@@ -467,16 +498,21 @@ def main():
                     abort_source = False
                     source_url = "{}://{}".format(protocol, endpnt_pair[0])
                     dest_url = "{}://{}".format(protocol, endpnt_pair[1])
-                    if endpnt_pair[0] in prob_endpoints or endpnt_pair[
-                            1] in prob_endpoints:
+                    # if the source endpoint is faulty, abort this run
+                    if endpnt_pair[0] in prob_endpoints:
+                        _flush_logging_msg("Aborting run for source: {}".format(
+                            endpnt_pair[0]))
                         continue
-                    logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-                    logger.info("Source: {}".format(source_url))
-                    logger.info("Destination: {}".format(dest_url))
-                    logger.handlers[0].flush()
+                    _flush_logging_msg(
+                        ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+                    _flush_logging_msg("Source: {}".format(source_url))
+                    _flush_logging_msg("Destination: {}".format(dest_url))
                     # for every filesize combination
                     for filesize in filesize_list:
                         if abort_source:
+                            _flush_logging_msg(
+                                "Aborting run for source: {}".format(
+                                    source_url))
                             break
 
                         # for every files per job combination
@@ -499,10 +535,9 @@ def main():
 
                             # check if source has adequate number of files of
                             # the desired filesize
-                            logger.info(
+                            _flush_logging_msg(
                                 "Checking source for {} existing {}MB files".
                                 format(numfile, filesize))
-                            logger.handlers[0].flush()
                             src_filenames = _gfal_check_files(
                                 source_dir, filesize, numfile)
 
@@ -519,17 +554,15 @@ def main():
                                     src_filenames.append(src_filename)
 
                                 # generate random files localy
-                                logger.info(
-                                    "Generating {} random files of size:{}MB".
-                                    format(numfile, filesize))
-                                logger.handlers[0].flush()
+                                _flush_logging_msg(
+                                    "Locally generating {} random files of size:{}MB"
+                                    .format(numfile, filesize))
                                 for file_path in local_file_paths:
                                     with open(file_path, 'wb') as fout:
                                         fout.write(os.urandom(filesize * MB))
 
                                 # upload files to the source for this job
-                                logger.info("Uploading files to source")
-                                logger.handlers[0].flush()
+                                _flush_logging_msg("Uploading files to source")
                                 rcode = _gfal_upload_files(
                                     local_file_paths, source_dir, src_filenames)
                                 if rcode == -1:
@@ -537,15 +570,13 @@ def main():
                                     break
 
                             # submit fts transfer
-                            logger.info('Submitting FTS job')
-                            logger.handlers[0].flush()
+                            _flush_logging_msg('Submitting FTS job')
                             job_id = _fts_submit_job(source_url, dest_url,
                                                      src_filenames,
                                                      dest_filenames, checksum,
                                                      overwrite, testing_folder,
                                                      context, metadata)
-                            logger.info('FTS job id:{}'.format(job_id))
-                            logger.handlers[0].flush()
+                            _flush_logging_msg('FTS job id:{}'.format(job_id))
 
                             job_map = {}
                             job_map['job_id'] = job_id
@@ -556,15 +587,13 @@ def main():
 
                             if remove_local_files:
                                 # remove files locally
-                                logger.info(
+                                _flush_logging_msg(
                                     "Removing files from LOCALPATH: {}".format(
                                         LOCALPATH_TEMP_DIR))
-                                logger.handlers[0].flush()
                                 for file in local_file_paths:
                                     os.remove(file)
 
-        logger.info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        logger.handlers[0].flush()
+        _flush_logging_msg(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         _fts_wait_jobs(context, job_map_list)
 
 

@@ -40,8 +40,16 @@ def _flush_logging_msg(msg):
 
 # ------------------------------------------------------------------------------
 
+# gfal2 context
+GFAL2_TIMEOUT = os.getenv("GFAL2_TIMEOUT", 300)
+ctx = gfal2.creat_context()
+# GridFTP timeout
+ctx.set_opt_integer("GRIDFTP PLUGIN", "OPERATION_TIMEOUT", int(GFAL2_TIMEOUT))
+# HTTP timeout
+ctx.set_opt_integer("HTTP PLUGIN", "OPERATION_TIMEOUT", int(GFAL2_TIMEOUT))
 
-def _gfal_clean_up_dir(directory, hours=24, timeout=300):
+
+def _gfal_clean_up_dir(directory, hours=24):
     """
     Remove all files from a directory
 
@@ -52,13 +60,10 @@ def _gfal_clean_up_dir(directory, hours=24, timeout=300):
         None if successful
         -1 if error
     """
-    context = gfal2.creat_context()
-    params = context.transfer_parameters()
-    params.timeout = timeout
 
     _flush_logging_msg('gfal-ls {}'.format(directory))
     try:
-        filenames = context.listdir(str(directory))
+        filenames = ctx.listdir(str(directory))
     except Exception as e:
         _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
             e, directory))
@@ -71,12 +76,12 @@ def _gfal_clean_up_dir(directory, hours=24, timeout=300):
         for file in filenames:
             gfal_file = os.path.join(directory, file)
             try:
-                info = context.lstat(str(gfal_file))
+                info = ctx.lstat(str(gfal_file))
                 file_time = datetime.fromtimestamp(info.st_mtime)
                 now = datetime.now()
                 diff_time = now - file_time
                 if diff_time.seconds / 60 / 60 > hours:
-                    error = context.unlink(str(gfal_file))
+                    error = ctx.unlink(str(gfal_file))
                     if not error:
                         actually_deleted += 1
                     else:
@@ -91,7 +96,7 @@ def _gfal_clean_up_dir(directory, hours=24, timeout=300):
     return None
 
 
-def _gfal_rm_files(filenames, directory, timeout=300):
+def _gfal_rm_files(filenames, directory):
     """
     Remove files from a directory
 
@@ -103,15 +108,12 @@ def _gfal_rm_files(filenames, directory, timeout=300):
         None if successful
         -1 if error
     """
-    context = gfal2.creat_context()
-    params = context.transfer_parameters()
-    params.timeout = timeout
 
     _flush_logging_msg('gfal-rm (x{}) {}'.format(len(filenames), directory))
     for file in filenames:
         gfal_file = os.path.join(directory, file)
         try:
-            error = context.unlink(str(gfal_file))
+            error = ctx.unlink(str(gfal_file))
             if not error:
                 pass
             else:
@@ -123,7 +125,7 @@ def _gfal_rm_files(filenames, directory, timeout=300):
     return None
 
 
-def _gfal_upload_files(local_file_paths, directory, filenames, timeout=300):
+def _gfal_upload_files(local_file_paths, directory, filenames):
     """
     Upload files to a directory
 
@@ -138,8 +140,7 @@ def _gfal_upload_files(local_file_paths, directory, filenames, timeout=300):
 
     """
     # set transfer parameters
-    context = gfal2.creat_context()
-    params = context.transfer_parameters()
+    params = ctx.transfer_parameters()
     params.overwrite = False
     params.checksum_check = True
     params.timeout = timeout
@@ -158,7 +159,7 @@ def _gfal_upload_files(local_file_paths, directory, filenames, timeout=300):
         for i in xrange(len(sources)):
             src = sources[i]
             dst = destinations[i]
-            error = context.filecopy(params, src, dst)
+            error = ctx.filecopy(params, src, dst)
             if not error:
                 pass
                 # _flush_logging_msg("{} => {} succeeded!".format(src, dst))
@@ -173,10 +174,7 @@ def _gfal_upload_files(local_file_paths, directory, filenames, timeout=300):
     return None
 
 
-def _gfal_setup_folders(endpnt_list,
-                        testing_folder,
-                        cleanup=False,
-                        timeout=300):
+def _gfal_setup_folders(endpnt_list, testing_folder, cleanup=False):
     """
     Setup folders at endpoint
 
@@ -185,10 +183,6 @@ def _gfal_setup_folders(endpnt_list,
         testing_folder(str): Folder name to remove/create
     Returns: None
     """
-    context = gfal2.creat_context()
-    params = context.transfer_parameters()
-    params.timeout = timeout
-
     problematic_endpoints = []
 
     # for each endpoint
@@ -197,7 +191,7 @@ def _gfal_setup_folders(endpnt_list,
         # list directories/files
         _flush_logging_msg('gfal-ls {}'.format(endpnt))
         try:
-            dir_names = context.listdir(endpnt)
+            dir_names = ctx.listdir(endpnt)
         except Exception as e:
             _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
                 e, endpnt))
@@ -213,9 +207,9 @@ def _gfal_setup_folders(endpnt_list,
             # create folder
             _flush_logging_msg('gfal-mkdir {}'.format(base_dir))
             try:
-                context.mkdir(str(base_dir), 0775)
-                context.mkdir(str(src_dir), 0775)
-                context.mkdir(str(dest_dir), 0775)
+                ctx.mkdir(str(base_dir), 0775)
+                ctx.mkdir(str(src_dir), 0775)
+                ctx.mkdir(str(dest_dir), 0775)
             except Exception as e:
                 _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
                     e, base_dir))
@@ -223,7 +217,7 @@ def _gfal_setup_folders(endpnt_list,
                 continue
         else:
             try:
-                dir_names = context.listdir(str(base_dir))
+                dir_names = ctx.listdir(str(base_dir))
             except Exception as e:
                 _flush_logging_msg("gfal-ls failed:{}, dir:{}".format(
                     e, base_dir))
@@ -232,7 +226,7 @@ def _gfal_setup_folders(endpnt_list,
             if "src" not in dir_names:
                 _flush_logging_msg('gfal-mkdir {}'.format(src_dir))
                 try:
-                    context.mkdir(str(src_dir), 0775)
+                    ctx.mkdir(str(src_dir), 0775)
                 except Exception as e:
                     _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
                         e, base_dir))
@@ -241,32 +235,27 @@ def _gfal_setup_folders(endpnt_list,
             if "dest" not in dir_names:
                 _flush_logging_msg('gfal-mkdir {}'.format(dest_dir))
                 try:
-                    context.mkdir(str(dest_dir), 0775)
+                    ctx.mkdir(str(dest_dir), 0775)
                 except Exception as e:
                     _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
                         e, dest_dir))
                     problematic_endpoints.append(endpnt_noprotocol)
                     continue
         if cleanup:
-            _flush_logging_msg(
-                "Cleaning up destination folder: {}".format(dest_dir))
+            _flush_logging_msg("Cleaning up destination folder")
             _gfal_clean_up_dir(dest_dir, hours=2)
 
     return problematic_endpoints
 
 
-def _gfal_check_files(directory, filesize, numfile, timeout=300):
+def _gfal_check_files(directory, filesize, numfile):
     """
     """
-    context = gfal2.creat_context()
-    params = context.transfer_parameters()
-    params.timeout = timeout
-
     return_filenames = []
 
     _flush_logging_msg('gfal-ls {}'.format(directory))
     try:
-        filenames = context.listdir(str(directory))
+        filenames = ctx.listdir(str(directory))
     except Exception as e:
         _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
             e, directory))
@@ -280,8 +269,14 @@ def _gfal_check_files(directory, filesize, numfile, timeout=300):
         for file in filenames:
             if file.endswith("{}mb".format(filesize)):
                 return_filenames.append(file)
+            if len(return_filenames) == numfile:
+                # prevents source having more files than needed error
+                break
         if len(return_filenames) < numfile:
             # we have less files of filesize than we want
+            # returns empty list although not optinal
+            # best solution would be to return as many files as we have
+            # and then just upload remaining number of files
             return []
     else:
         # no files at all
@@ -545,6 +540,9 @@ def main():
 
                             if src_filenames == -1:
                                 abort_source = True
+                                _flush_logging_msg(
+                                    "Aborting run for source: {}".format(
+                                        source_url))
                                 break
 
                             remove_local_files = False
@@ -569,6 +567,9 @@ def main():
                                     local_file_paths, source_dir, src_filenames)
                                 if rcode == -1:
                                     abort_source = True
+                                    _flush_logging_msg(
+                                        "Aborting run for source: {}".format(
+                                            source_url))
                                     break
 
                             # submit fts transfer

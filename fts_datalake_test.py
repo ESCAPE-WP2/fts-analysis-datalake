@@ -58,7 +58,7 @@ def _gfal_clean_up_dir(directory, hours=24, timeout=300):
 
     _flush_logging_msg('gfal-ls {}'.format(directory))
     try:
-        filenames = context.listdir(params, str(directory))
+        filenames = context.listdir(str(directory))
     except Exception as e:
         _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
             e, directory))
@@ -71,12 +71,12 @@ def _gfal_clean_up_dir(directory, hours=24, timeout=300):
         for file in filenames:
             gfal_file = os.path.join(directory, file)
             try:
-                info = context.lstat(params, str(gfal_file))
+                info = context.lstat(str(gfal_file))
                 file_time = datetime.fromtimestamp(info.st_mtime)
                 now = datetime.now()
                 diff_time = now - file_time
                 if diff_time.seconds / 60 / 60 > hours:
-                    error = context.unlink(params, str(gfal_file))
+                    error = context.unlink(str(gfal_file))
                     if not error:
                         actually_deleted += 1
                     else:
@@ -111,7 +111,7 @@ def _gfal_rm_files(filenames, directory, timeout=300):
     for file in filenames:
         gfal_file = os.path.join(directory, file)
         try:
-            error = context.unlink(params, str(gfal_file))
+            error = context.unlink(str(gfal_file))
             if not error:
                 pass
             else:
@@ -197,7 +197,7 @@ def _gfal_setup_folders(endpnt_list,
         # list directories/files
         _flush_logging_msg('gfal-ls {}'.format(endpnt))
         try:
-            dir_names = context.listdir(params, endpnt)
+            dir_names = context.listdir(endpnt)
         except Exception as e:
             _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
                 e, endpnt))
@@ -213,9 +213,9 @@ def _gfal_setup_folders(endpnt_list,
             # create folder
             _flush_logging_msg('gfal-mkdir {}'.format(base_dir))
             try:
-                context.mkdir(params, str(base_dir), 0775)
-                context.mkdir(params, str(src_dir), 0775)
-                context.mkdir(params, str(dest_dir), 0775)
+                context.mkdir(str(base_dir), 0775)
+                context.mkdir(str(src_dir), 0775)
+                context.mkdir(str(dest_dir), 0775)
             except Exception as e:
                 _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
                     e, base_dir))
@@ -223,7 +223,7 @@ def _gfal_setup_folders(endpnt_list,
                 continue
         else:
             try:
-                dir_names = context.listdir(params, str(base_dir))
+                dir_names = context.listdir(str(base_dir))
             except Exception as e:
                 _flush_logging_msg("gfal-ls failed:{}, dir:{}".format(
                     e, base_dir))
@@ -232,7 +232,7 @@ def _gfal_setup_folders(endpnt_list,
             if "src" not in dir_names:
                 _flush_logging_msg('gfal-mkdir {}'.format(src_dir))
                 try:
-                    context.mkdir(params, str(src_dir), 0775)
+                    context.mkdir(str(src_dir), 0775)
                 except Exception as e:
                     _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
                         e, base_dir))
@@ -241,7 +241,7 @@ def _gfal_setup_folders(endpnt_list,
             if "dest" not in dir_names:
                 _flush_logging_msg('gfal-mkdir {}'.format(dest_dir))
                 try:
-                    context.mkdir(params, str(dest_dir), 0775)
+                    context.mkdir(str(dest_dir), 0775)
                 except Exception as e:
                     _flush_logging_msg("gfal-mkdir failed:{}, dir:{}".format(
                         e, dest_dir))
@@ -266,7 +266,7 @@ def _gfal_check_files(directory, filesize, numfile, timeout=300):
 
     _flush_logging_msg('gfal-ls {}'.format(directory))
     try:
-        filenames = context.listdir(params, str(directory))
+        filenames = context.listdir(str(directory))
     except Exception as e:
         _flush_logging_msg("gfal-ls failed:{}, endpoint:{}".format(
             e, directory))
@@ -338,6 +338,8 @@ def _fts_wait_jobs(context, job_map_list):
                         if response['job_state'] == "FINISHED":
                             _gfal_rm_files(job_map['files_to_purge'],
                                            job_map['directory'])
+                            _flush_logging_msg(
+                                "Removing testing files from destination")
                         else:
                             filenames = []
                             for file_map in response['files']:

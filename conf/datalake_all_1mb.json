@@ -14,6 +14,7 @@
             "door05.pic.es:8452//rucio/pic_dcache", 
             "dcache-door-doma01.desy.de:2880//escape/wp2_rucio_testbed/desy_dcache", 
             "eoseulake.cern.ch:443/eos/eulake/tests/rucio_test/eulake_1", 
+            "atlas-dpm-01.roma1.infn.it:443//dpm/roma1.infn.it/home/escape/tests", 
             "lapp-esc02.in2p3.fr:8001/webdav", 
             "ccdcalitest10.in2p3.fr:2880//pnfs/in2p3.fr/data/escape/cc_in2p3_dcache", 
             "t2-dpm-dome.na.infn.it:443//dpm/na.infn.it/home/escape/infn_na_dpm", 
@@ -28,6 +29,7 @@
             "xrootd.pic.es:1094//pnfs/pic.es/data/escape/rucio/pic_dcache", 
             "dcache-se-doma.desy.de:1094//escape/wp2_rucio_testbed/desy_dcache", 
             "eoseulake.cern.ch:1094//eos/eulake/tests/rucio_test/eulake_1", 
+            "atlas-dpm-01.roma1.infn.it:1094//dpm/roma1.infn.it/home/escape/tests", 
             "ccdcalitest10.in2p3.fr:1094//pnfs/in2p3.fr/data/escape/cc_in2p3_dcache", 
             "t2-dpm-dome.na.infn.it:1094//dpm/na.infn.it/home/escape/infn_na_dpm", 
             "lapp-testse01.in2p3.fr:1094//dpm/in2p3.fr/home/escape/rucio/lapp_dpm", 
@@ -38,6 +40,7 @@
         "gsiftp": [
             "dcache-door-doma01.desy.de:2811//escape/wp2_rucio_testbed/desy_dcache", 
             "eulakeftp.cern.ch:2811/eos/eulake/tests/rucio_test/eulake_1", 
+            "atlas-dpm-01.roma1.infn.it:2811//dpm/roma1.infn.it/home/escape/tests", 
             "ccdcalitest10.in2p3.fr:2811//pnfs/in2p3.fr/data/escape/cc_in2p3_dcache", 
             "t2-dpm-dome.na.infn.it:2811//dpm/na.infn.it/home/escape/infn_na_dpm", 
             "lapp-testse01.in2p3.fr:2811/dpm/in2p3.fr/home/escape/rucio/lapp_dpm", 
@@ -46,6 +49,7 @@
         ]
     }, 
     "metadata": {
-        "activity": "functional-testing"
+        "activity": "functional-testing",
+        "filesize": 1
     }
 }

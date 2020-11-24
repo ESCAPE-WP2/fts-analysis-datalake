@@ -143,7 +143,6 @@ def _gfal_upload_files(local_file_paths, directory, filenames):
     params = ctx.transfer_parameters()
     params.overwrite = False
     params.checksum_check = True
-    params.timeout = timeout
 
     sources = []
     destinations = []

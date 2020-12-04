@@ -388,6 +388,7 @@ def _fts_submit_job(source_url, dest_url, src_filenames, dst_filenames,
             break
         except fts3_client_exceptions.ClientError as e:
             _flush_logging_msg(e)
+            return -1
 
     return job_id
 
@@ -578,6 +579,9 @@ def main():
                                                      dest_filenames, checksum,
                                                      overwrite, testing_folder,
                                                      context, metadata)
+                            if job_id == -1:
+                                _flush_logging_msg('Job aborted')
+                                continue
                             _flush_logging_msg('FTS job id:{}'.format(job_id))
 
                             job_map = {}

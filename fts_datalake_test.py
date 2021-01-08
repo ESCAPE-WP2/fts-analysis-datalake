@@ -6,6 +6,7 @@ import sys
 import json
 import uuid
 import gfal2
+import time
 import errno
 import argparse
 import logging
@@ -320,6 +321,7 @@ def _fts_wait_jobs(context, job_map_list):
                 job_id = job_map['job_id']
                 if job_id in finished_jobs:
                     continue
+                time.sleep(10)
                 response = fts3.get_job_status(context, job_id, list_files=True)
                 if response['http_status'] == "200 Ok":
                     if response["job_finished"]:

@@ -345,17 +345,14 @@ def _fts_wait_jobs(context, job_map_list, sleep_time=10):
                             _flush_logging_msg(
                                 "Removing testing files from destination")
                             _gfal_rm_files(filenames, job_map['directory'])
-                        break
                 else:
                     _flush_logging_msg('Server http status: {}'.format(
                         response['http_status']))
                     finished_jobs.append(job_id)
-                    continue
             except Exception as e:
                 _flush_logging_msg("Polling failed:{}, response:{}".format(
                     e, response))
                 finished_jobs.append(job_id)
-                continue
         _flush_logging_msg(
             "Sleeping for {} seconds before commencing polling again..".format(
                 sleep_time))

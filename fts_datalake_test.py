@@ -311,12 +311,11 @@ def _fts_poll_job(context, job_id):
     return response['job_state']
 
 
-def _fts_wait_jobs(context, job_map_list):
+def _fts_wait_jobs(context, job_map_list, sleep_time=10):
     """
     """
     finished_jobs = []
     while len(finished_jobs) < len(job_map_list):
-        time.sleep(10)
         for job_map in job_map_list:
             try:
                 job_id = job_map['job_id']
@@ -357,7 +356,10 @@ def _fts_wait_jobs(context, job_map_list):
                     e, response))
                 finished_jobs.append(job_id)
                 continue
-
+        _flush_logging_msg(
+            "Sleeping for {} seconds before commencing polling again..".format(
+                sleep_time))
+        time.sleep(sleep_time)
     return None
 
 
@@ -603,6 +605,7 @@ def main():
 
         _flush_logging_msg(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         _fts_wait_jobs(context, job_map_list)
+        _flush_logging_msg("Testing DONE, program is going to exit now!")
 
 
 if __name__ == '__main__':

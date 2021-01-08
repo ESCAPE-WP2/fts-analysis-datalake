@@ -316,12 +316,12 @@ def _fts_wait_jobs(context, job_map_list):
     """
     finished_jobs = []
     while len(finished_jobs) < len(job_map_list):
+        time.sleep(10)
         for job_map in job_map_list:
             try:
                 job_id = job_map['job_id']
                 if job_id in finished_jobs:
                     continue
-                time.sleep(10)
                 response = fts3.get_job_status(context, job_id, list_files=True)
                 if response['http_status'] == "200 Ok":
                     if response["job_finished"]:
